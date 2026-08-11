@@ -1,0 +1,26 @@
+version: "3.8"
+
+services:
+  drone_voice_control:
+    build: .
+    container_name: task1_drone
+    # Gazebo/RViz/PyQt5 all need to open real windows on YOUR screen.
+    # network_mode: host + the X11 socket mount below are what make a
+    # container's GUI appear on the host's actual display, instead of
+    # being invisible inside the container.
+    network_mode: host
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - GAZEBO_MODEL_DATABASE_URI=
+    volumes:
+      # Share the X11 display socket so GUI windows render on your screen
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    # Give the container access to the microphone hardware. Without this,
+    # `sounddevice` inside the container has no audio device to read from
+    # at all, regardless of how correctly the Python code is written.
+    devices:
+      - /dev/snd:/dev/snd
+    stdin_open: true
+    tty: true
+    command: bash
