@@ -57,3 +57,6 @@ ros2 run drone_voice_control drone_voice_control --ros-args \
   to avoid multi-minute startup stalls seen when that lookup times out.
 - The bonus swarm/leader-follower feature was not implemented; effort was
   focused on the core 75-point requirements.
+
+## Docker Note
+The Docker image builds successfully and contains all dependencies. GUI/mesh rendering inside the container requires additional X11 and Gazebo model-path configuration; the demonstration video was recorded running natively on the host.
