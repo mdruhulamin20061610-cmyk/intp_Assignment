@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     portaudio19-dev \
     ros-humble-tf-transformations \
+    ros-humble-gazebo-ros-pkgs \
     git \
     wget \
     unzip \
