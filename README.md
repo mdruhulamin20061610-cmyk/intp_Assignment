@@ -62,3 +62,5 @@ ros2 run drone_voice_control drone_voice_control --ros-args \
 The Docker image builds successfully and contains all dependencies. GUI/mesh rendering inside the container requires additional X11 and Gazebo model-path configuration; the demonstration video was recorded running natively on the host.
 
 
+
+**For evaluation:** see [SETUP_NATIVE.md](SETUP_NATIVE.md) for complete native installation instructions.
