@@ -18,11 +18,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     portaudio19-dev \
     ros-humble-tf-transformations \
     ros-humble-gazebo-ros-pkgs \
+    ros-humble-gazebo-plugins \
+    ros-humble-gazebo-dev \
+    ros-humble-xacro \
+    ros-humble-rviz2 \
+    ros-humble-joint-state-publisher \
+    ros-humble-joint-state-publisher-gui \
+    ros-humble-robot-state-publisher \
+    ros-humble-imu-tools \
+    ros-humble-teleop-twist-keyboard \
+    ros-humble-joy \
+    xterm \
     git \
     wget \
     unzip \
     && rm -rf /var/lib/apt/lists/*
-
 # --- Python dependencies not available via apt ---
 RUN pip3 install --no-cache-dir vosk sounddevice
 
