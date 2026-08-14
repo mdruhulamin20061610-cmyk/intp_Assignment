@@ -221,17 +221,29 @@ both control the drone.
 cd ~/assignment1_ws
 xhost +local:docker
 docker compose build
-docker compose up
+docker compose up -d
+docker ps    # confirm task1_drone shows "Up"
 ```
-Inside the container:
+
+**Terminal 1 — Gazebo:**
 ```bash
-ros2 launch sjtu_drone_bringup sjtu_drone_bringup.launch.py
+docker exec -it task1_drone bash -c "source /opt/ros/humble/setup.bash && source /root/assignment1_ws/install/setup.bash && ros2 launch sjtu_drone_bringup sjtu_drone_bringup.launch.py"
 ```
-In a second shell into the same container:
+
+**Terminal 2 (new window) — voice control node:**
 ```bash
-docker exec -it task1_drone bash
-ros2 run drone_voice_control drone_voice_control --ros-args \
-  -p vosk_model_path:=/root/assignment1_ws/src/drone_voice_control/models/model
+docker exec -it task1_drone bash -c "source /opt/ros/humble/setup.bash && source /root/assignment1_ws/install/setup.bash && ros2 run drone_voice_control drone_voice_control --ros-args -p vosk_model_path:=/root/assignment1_ws/src/drone_voice_control/models/model"
+```
+
+Both source ROS explicitly rather than relying on `~/.bashrc`, because
+`docker exec ... bash -c "..."` opens a non-interactive shell, which
+does not read `~/.bashrc` even though the Dockerfile appends the
+sourcing lines there — that only benefits an interactive `bash` opened
+with no `-c` argument.
+
+**Shut down:**
+```bash
+docker compose down
 ```
 
 ---
@@ -248,6 +260,10 @@ ros2 run drone_voice_control drone_voice_control --ros-args \
 | `AttributeError: module 'numpy' has no attribute 'float'` | System/`.local` NumPy ≥1.24 breaks `transforms3d` | Section 5's isolated `voice_env` venv, pinned to `numpy<1.24` |
 | Same numpy error persists even with `voice_env` active | `ros2 run` uses the executable's shebang, which `colcon` always writes as system Python | Launch with `python3 <path-to-executable>` instead (Section 9) |
 | `[ERROR] vosk/sounddevice not installed` despite installing them | Installed outside `voice_env` (e.g. into `~/.local`) | Confirm `echo $VIRTUAL_ENV` shows `voice_env` before `pip install` |
+| Docker: `ros2: command not found` when running `docker exec -it task1_drone bash -lc "..."` | `bash -lc` runs a non-interactive shell, which does not read `~/.bashrc` where the ROS sourcing lines live | Source explicitly in the command itself (Section 10) |
+| Docker: `pactl: command not found` | Image was built before `pulseaudio-utils`/`libasound2-plugins` were added to the Dockerfile | `docker compose down && docker compose build && docker compose up -d` to rebuild with the current Dockerfile |
+| Docker: `pactl list short sources` → `Connection failure: Access denied` | PulseAudio authenticates by cookie file, separate from the socket's file permissions; the container connects as `root`, a different user than the cookie's owner on the host | Mount `~/.config/pulse/cookie` into the container and set `PULSE_COOKIE` (see `docker-compose.yml`) |
+| Docker: GUI windows never appear | `xhost +local:docker` not run on the host before `docker compose up` | Run it once per host login session before starting the container |
 
 ---
 

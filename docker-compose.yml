@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   drone_voice_control:
     build: .
@@ -13,14 +11,25 @@ services:
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
       - GAZEBO_MODEL_DATABASE_URI=
+      - PULSE_SERVER=unix:/tmp/pulse_socket
+      - PULSE_COOKIE=/root/.config/pulse/cookie
     volumes:
       # Share the X11 display socket so GUI windows render on your screen
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
-    # Give the container access to the microphone hardware. Without this,
-    # `sounddevice` inside the container has no audio device to read from
-    # at all, regardless of how correctly the Python code is written.
-    devices:
-      - /dev/snd:/dev/snd
+      # Share the host's already-running PulseAudio socket instead of
+      # handing the container raw hardware access. The host's PulseAudio
+      # daemon normally holds /dev/snd exclusively, so a container trying
+      # to open it directly gets "Device or resource busy" -- routing
+      # through the same server the host already uses avoids that fight.
+      - ${XDG_RUNTIME_DIR}/pulse/native:/tmp/pulse_socket
+      # PulseAudio authenticates clients with a cookie file, separately
+      # from Linux file permissions on the socket above. Without sharing
+      # this, the container connects as root (different from the socket's
+      # owning user) and gets "Connection failure: Access denied" even
+      # though the socket itself is reachable.
+      - ${HOME}/.config/pulse/cookie:/root/.config/pulse/cookie:ro
+    group_add:
+      - audio
     stdin_open: true
     tty: true
     command: bash

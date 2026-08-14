@@ -16,6 +16,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pyqt5 \
     python3-pip \
     portaudio19-dev \
+    pulseaudio-utils \
+    libasound2-plugins \
     ros-humble-tf-transformations \
     ros-humble-gazebo-ros-pkgs \
     ros-humble-gazebo-plugins \

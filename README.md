@@ -20,29 +20,51 @@ and Qt signals rather than direct function calls:
 ## Requirements
 - Docker + Docker Compose
 - An X11 display (Linux desktop) for GUI passthrough
-- A working microphone
+- A working microphone routed through PulseAudio (the Linux desktop default)
 
 ## Running with Docker
 
+**One-time per session — allow the container to open windows on your screen:**
 ```bash
-# Allow the container to open windows on your display
 xhost +local:docker
+```
 
-# Build the image (first time, or after code changes)
+**Build and start the container:**
+```bash
+cd ~/assignment1_ws
 docker compose build
-
-# Start the simulation + node
-docker compose up
+docker compose up -d
+docker ps    # confirm task1_drone shows "Up"
 ```
 
-Inside the running container:
+**Terminal 1 — launch Gazebo + the drone** (leave this running for the
+whole session, same as the native workflow):
 ```bash
-ros2 launch sjtu_drone_bringup sjtu_drone_bringup.launch.py
+docker exec -it task1_drone bash -c "source /opt/ros/humble/setup.bash && source /root/assignment1_ws/install/setup.bash && ros2 launch sjtu_drone_bringup sjtu_drone_bringup.launch.py"
 ```
-In a second shell into the same container (`docker exec -it task1_drone bash`):
+Wait for this log line before continuing:
+```
+[INFO] [simple_drone.simple_drone]: The drone plugin finished loading!
+```
+(A long stream of `Unable to connect to model database` /
+`Failed to find mesh file` warnings above that line is expected — those
+are decorative background props in the world file failing to download
+their meshes, since `GAZEBO_MODEL_DATABASE_URI=""` deliberately blocks
+that lookup. Harmless.)
+
+**Terminal 2 (new window) — voice control node + telemetry GUI:**
 ```bash
-ros2 run drone_voice_control drone_voice_control --ros-args \
-  -p vosk_model_path:=/root/assignment1_ws/src/drone_voice_control/models/model
+docker exec -it task1_drone bash -c "source /opt/ros/humble/setup.bash && source /root/assignment1_ws/install/setup.bash && ros2 run drone_voice_control drone_voice_control --ros-args -p vosk_model_path:=/root/assignment1_ws/src/drone_voice_control/models/model"
+```
+
+Both commands source ROS explicitly rather than relying on `~/.bashrc`,
+because `docker exec ... bash -c "..."` runs a non-interactive shell,
+which does not read `~/.bashrc` — even though the Dockerfile adds the
+sourcing lines there.
+
+**Shut down:**
+```bash
+docker compose down
 ```
 
 ## Parameters
@@ -60,11 +82,21 @@ ros2 run drone_voice_control drone_voice_control --ros-args \
 - If Terminal 2 crashes with `AttributeError: module 'numpy' has no
   attribute 'float'`, this is a NumPy version conflict with
   `tf_transformations`, isolated to this workspace via a venv — see
-  **Step 8** in [SETUP_NATIVE.md](SETUP_NATIVE.md) for the fix.
+  **Step 8** in [SETUP_NATIVE.md](SETUP_NATIVE.md) for the fix (this only
+  affects the native run; the Docker image pins a compatible NumPy at
+  build time).
 
 ## Docker Note
-The Docker image builds successfully and contains all dependencies. GUI/mesh rendering inside the container requires additional X11 and Gazebo model-path configuration; the demonstration video was recorded running natively on the host.
-
-
+Both the Gazebo simulation and the voice-control/GUI node run
+successfully inside the container, including microphone access —
+confirmed end-to-end. GUI windows render via X11 passthrough
+(`xhost +local:docker` + an X11 socket mount); audio is routed through
+the host's existing PulseAudio server (socket + cookie file shared into
+the container) rather than raw ALSA hardware, since the host's
+PulseAudio daemon normally holds that hardware exclusively and a
+container requesting it directly gets "Device or resource busy."
+Rendering uses Mesa's software rasterizer (`llvmpipe`) with no GPU
+passthrough configured, so it is visibly slower to redraw than the
+native run, but functionally correct.
 
 **For evaluation:** see [SETUP_NATIVE.md](SETUP_NATIVE.md) for complete native installation instructions.
