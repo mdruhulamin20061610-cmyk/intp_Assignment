@@ -57,6 +57,10 @@ ros2 run drone_voice_control drone_voice_control --ros-args \
   to avoid multi-minute startup stalls seen when that lookup times out.
 - The bonus swarm/leader-follower feature was not implemented; effort was
   focused on the core 75-point requirements.
+- If Terminal 2 crashes with `AttributeError: module 'numpy' has no
+  attribute 'float'`, this is a NumPy version conflict with
+  `tf_transformations`, isolated to this workspace via a venv — see
+  **Step 8** in [SETUP_NATIVE.md](SETUP_NATIVE.md) for the fix.
 
 ## Docker Note
 The Docker image builds successfully and contains all dependencies. GUI/mesh rendering inside the container requires additional X11 and Gazebo model-path configuration; the demonstration video was recorded running natively on the host.

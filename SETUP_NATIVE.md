@@ -176,7 +176,57 @@ Expected output: `drone_voice_control drone_voice_control`
 
 ---
 
-## Step 8 — Disable Gazebo's online model database
+## Step 8 — Fix a possible NumPy version conflict
+
+**Symptom:** Terminal 2 crashes on startup with:
+```
+AttributeError: module 'numpy' has no attribute 'float'
+```
+This happens if a NumPy version ≥1.24 is present in
+`~/.local/lib/python3.10/site-packages/` (e.g. installed earlier by pip for
+an unrelated project). This project's node imports `tf_transformations`,
+which depends on `transforms3d`, which calls the now-removed `np.float`
+alias — so it only works with NumPy <1.24.
+
+**Check if you're affected:**
+```bash
+python3 -c "import numpy; print(numpy.__version__)"
+```
+If this prints `1.24` or higher, apply the fix below. If it's already
+below 1.24, skip to Step 9.
+
+**Fix — an isolated virtual environment scoped to this workspace only.**
+This avoids touching your system-wide NumPy, which other projects
+(including Tasks 2 and 3 in this assignment, if present) may depend on
+at a different version.
+
+```bash
+cd ~/assignment1_ws
+python3 -m venv --system-site-packages voice_env
+source voice_env/bin/activate
+export PYTHONNOUSERSITE=1   # stops ~/.local packages from shadowing the venv
+pip install "numpy<1.24" vosk PyQt5 sounddevice
+```
+
+**Why `PYTHONNOUSERSITE=1` is required:** a venv created with
+`--system-site-packages` unexpectedly still sees packages in
+`~/.local/lib/.../site-packages` by default, which can shadow the correct
+version just installed inside the venv. This variable disables that
+fallback for the current terminal.
+
+**Verify:**
+```bash
+python3 -c "import numpy; print(numpy.__version__)"          # should be 1.23.x
+python3 -c "from transforms3d import quaternions"             # no output = success
+python3 -c "import vosk, sounddevice; print('OK')"
+```
+
+You will re-activate this environment (`source voice_env/bin/activate` +
+`export PYTHONNOUSERSITE=1`) every time you run Terminal 2 — see Step 10.
+
+---
+
+## Step 9 — Disable Gazebo's online model database
 
 Without this, Gazebo stalls for several minutes on startup attempting to
 reach `models.gazebosim.org`, and the drone plugin fails to load in time.
@@ -189,7 +239,7 @@ source ~/.bashrc
 
 ---
 
-## Step 9 — Run
+## Step 10 — Run
 
 **Terminal 1 — start the simulation:**
 ```bash
@@ -204,11 +254,28 @@ Wait until this line appears before continuing:
 ```
 
 **Terminal 2 — start the voice control node and dashboard:**
+
+If you did **not** need the Step 8 fix (system NumPy is already <1.24):
 ```bash
 source /opt/ros/humble/setup.bash
 source ~/assignment1_ws/install/setup.bash
 ros2 run drone_voice_control drone_voice_control --ros-args \
   -p vosk_model_path:=$HOME/assignment1_ws/src/drone_voice_control/models/model
+```
+
+If you **did** apply the Step 8 fix, activate the venv first, and invoke
+the node directly with `python3` instead of `ros2 run` — `colcon build`
+always writes the entry-point script's shebang using the *system* Python,
+regardless of which venv was active when you built, so `ros2 run` would
+otherwise silently fall back to the system Python and miss the venv's
+packages:
+```bash
+source ~/assignment1_ws/voice_env/bin/activate
+export PYTHONNOUSERSITE=1
+source /opt/ros/humble/setup.bash
+source ~/assignment1_ws/install/setup.bash
+python3 ~/assignment1_ws/install/drone_voice_control/lib/drone_voice_control/drone_voice_control \
+  --ros-args -p vosk_model_path:=$HOME/assignment1_ws/src/drone_voice_control/models/model
 ```
 
 ### What should happen
@@ -240,12 +307,15 @@ ros2 run drone_voice_control drone_voice_control --ros-args -p start_mode:=voice
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Gazebo window frozen / "not responding" | Stalled reaching the online model database | Confirm Step 8 was applied: `echo $GAZEBO_MODEL_DATABASE_URI` should print an empty line |
-| `/simple_drone/cmd_vel` missing from `ros2 topic list` | Drone plugin never finished loading | Same as above; relaunch after applying Step 8 |
+| Gazebo window frozen / "not responding" | Stalled reaching the online model database | Confirm Step 9 was applied: `echo $GAZEBO_MODEL_DATABASE_URI` should print an empty line |
+| `/simple_drone/cmd_vel` missing from `ros2 topic list` | Drone plugin never finished loading | Same as above; relaunch after applying Step 9 |
 | `package not found` when running `ros2 run` | Workspace not sourced in this terminal | `source ~/assignment1_ws/install/setup.bash` |
 | Dashboard opens but numbers never change | Simulation not running, or wrong namespace | Check `ros2 topic list` for the real prefix, then pass `-p drone_ns:=<prefix>` |
 | Voice commands do nothing | Wrong model path, or no microphone detected | Verify Step 6, and check the terminal for `Listening for voice commands...` |
 | `colcon build` fails on `sjtu_drone_description` | Missing `gazebo_ros` | Re-run Step 2 |
+| `AttributeError: module 'numpy' has no attribute 'float'` on Terminal 2 | A NumPy ≥1.24 in `~/.local` shadows the older version `transforms3d` needs | Apply Step 8 |
+| Step 8's fix applied, but the same numpy error still appears | `ros2 run` used the venv's `python3` for the terminal, but the *built executable's* shebang still points at system Python | Launch with `python3 <path-to-executable> --ros-args ...` instead of `ros2 run ...` (see Step 10) |
+| `[ERROR] vosk/sounddevice not installed` even after `pip install vosk sounddevice` | Installed into `~/.local` or the wrong environment, not into `voice_env` | Confirm `voice_env` is active (`echo $VIRTUAL_ENV`) before running `pip install`, then reinstall |
 
 ---
 
@@ -263,4 +333,4 @@ docker exec -it task1_drone bash
 
 Note that GUI rendering inside the container requires additional X11 and
 Gazebo model-path configuration beyond what is provided. **Native
-installation (Steps 1–9 above) is the recommended path for evaluation.**
+installation (Steps 1–10 above) is the recommended path for evaluation.**

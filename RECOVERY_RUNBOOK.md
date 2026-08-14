@@ -102,19 +102,40 @@ source install/setup.bash
 
 ## 5. Install Python dependencies
 
+`tf_transformations` (installed below) depends on `transforms3d`, which
+uses the now-removed `np.float` alias — it only works with NumPy <1.24.
+To avoid clashing with any newer NumPy your system or `~/.local` may end
+up with, install this project's Python packages into an isolated venv
+scoped to this workspace, rather than system/user-wide.
+
 ```bash
-sudo apt install python3-pyqt5
-pip3 install vosk sounddevice
-sudo apt install ros-humble-tf-transformations
+sudo apt install ros-humble-tf-transformations python3-venv portaudio19-dev
+
+cd ~/assignment1_ws
+python3 -m venv --system-site-packages voice_env
+source voice_env/bin/activate
+export PYTHONNOUSERSITE=1
+pip install "numpy<1.24" PyQt5 vosk sounddevice
 ```
+
+**Why `--system-site-packages` + `PYTHONNOUSERSITE=1` together:** the venv
+needs to see system-installed `rclpy` and `tf_transformations` (hence
+`--system-site-packages`), but that flag has the side effect of also
+exposing `~/.local`, which can shadow the NumPy just installed above.
+`PYTHONNOUSERSITE=1` blocks that shadowing for the current terminal.
 
 **Verify:**
 ```bash
+python3 -c "import numpy; print(numpy.__version__)"           # 1.23.x
 python3 -c "import PyQt5; print('PyQt5 OK')"
 python3 -c "import vosk; print('vosk OK')"
 python3 -c "import sounddevice; print('sounddevice OK')"
 python3 -c "from tf_transformations import euler_from_quaternion; print('tf_transformations OK')"
 ```
+
+You will need to re-run `source voice_env/bin/activate` and
+`export PYTHONNOUSERSITE=1` in any new terminal before running the node
+(see Section 9).
 
 ---
 
@@ -145,6 +166,12 @@ ros2 pkg executables drone_voice_control
 ```
 Expected: `drone_voice_control drone_voice_control`
 
+**Note:** `colcon` writes the generated executable's shebang line using
+the *system* Python (`/usr/bin/python3`), even if `voice_env` is active
+during the build. This means `ros2 run drone_voice_control ...` will
+always launch under system Python, not the venv — see Section 9 for the
+correct way to launch it.
+
 ---
 
 ## 8. Disable Gazebo's online model database
@@ -171,11 +198,15 @@ Wait for: `"The drone plugin finished loading!"`
 
 **Terminal 2 — run the node:**
 ```bash
+source ~/assignment1_ws/voice_env/bin/activate
+export PYTHONNOUSERSITE=1
 source /opt/ros/humble/setup.bash
 source ~/assignment1_ws/install/setup.bash
-ros2 run drone_voice_control drone_voice_control --ros-args \
-  -p vosk_model_path:=/home/$USER/assignment1_ws/src/drone_voice_control/models/model
+python3 ~/assignment1_ws/install/drone_voice_control/lib/drone_voice_control/drone_voice_control \
+  --ros-args -p vosk_model_path:=/home/$USER/assignment1_ws/src/drone_voice_control/models/model
 ```
+Invoked via `python3 <path>` rather than `ros2 run` so it actually uses
+`voice_env`'s Python (see the note at the end of Section 7).
 
 A PyQt5 "Drone Telemetry Dashboard" window should appear; the drone
 should auto-takeoff after ~2 seconds. Manual mode buttons and voice
@@ -214,6 +245,9 @@ ros2 run drone_voice_control drone_voice_control --ros-args \
 | teleop's `t`/`l` work but `w`/`a`/`s`/`d` do nothing | `linear_velocity` starts at 0.0; only `q`/`e` change it | Press `q` several times to raise speed before pressing movement keys |
 | `pip3 install ... --break-system-packages` → "no such option" | Older pip version (22.0.2) doesn't support that flag | Just omit the flag: `pip3 install vosk sounddevice` |
 | Docker `COPY drone_voice_control` fails, path not found | Package actually lives under `src/`, not workspace root | Use `COPY src/drone_voice_control ./drone_voice_control` |
+| `AttributeError: module 'numpy' has no attribute 'float'` | System/`.local` NumPy ≥1.24 breaks `transforms3d` | Section 5's isolated `voice_env` venv, pinned to `numpy<1.24` |
+| Same numpy error persists even with `voice_env` active | `ros2 run` uses the executable's shebang, which `colcon` always writes as system Python | Launch with `python3 <path-to-executable>` instead (Section 9) |
+| `[ERROR] vosk/sounddevice not installed` despite installing them | Installed outside `voice_env` (e.g. into `~/.local`) | Confirm `echo $VIRTUAL_ENV` shows `voice_env` before `pip install` |
 
 ---
 

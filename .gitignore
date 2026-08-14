@@ -5,3 +5,4 @@ src/sjtu_drone/
 src/drone_voice_control/models/
 __pycache__/
 *.pyc
+voice_env/
